@@ -1,0 +1,43 @@
+{
+  "languageMarkers": [
+    "здравствуйте", "прошу", "ошибка", "приложение", "данные", "жалоба", "мошенничество", "консультация",
+    "zdravstvuite", "pozhaluista", "proshu", "oshibka", "prilozhenie", "dannie", "zhaloba", "moshennichestvo",
+    "konsultaciya", "srochno", "ne rabotaet", "ne mogu voiti", "smena nomera", "izmenit dannye",
+    "na schet", "ne prishlo", "vernite dengi", "vozvrat", "deneg net", "platezh"
+  ],
+  "requestTypes": {
+    "Complaint": [
+      "жалоба", "возмущен", "недоволен", "ужасный", "плохой сервис", "жалуюсь", "безобразие", "vozmushen", "zhaloba"
+    ],
+    "DataChange": [
+      "смена данных", "изменить данные", "обновить номер", "сменить адрес", "изменить телефон",
+      "smena dannyh", "smena nomera", "izmenit dannye", "izmenit telefon"
+    ],
+    "Consultation": [
+      "подскажите", "консультация", "как оформить", "какие условия", "уточнить", "vopros", "pomogite razobratsya"
+    ],
+    "Claim": [
+      "претензия", "требую", "компенсация", "возмещение", "нарушены права", "не пришло на счет",
+      "деньги не пришли", "верните деньги", "возврат средств", "не зачислены", "125$", "refund", "chargeback"
+    ],
+    "AppFailure": [
+      "не работает приложение", "ошибка", "вылетает", "не могу войти", "bug", "oshibka", "ne rabotaet",
+      "ne mogu voiti", "viletayet", "не могу зарегистрироваться", "не получается войти", "не приходит смс", "код не приходит"
+    ],
+    "FraudulentActivity": [
+      "мошенничество", "подозрительная операция", "украли", "взлом", "fraud", "moshennichestvo",
+      "podozritelnaya operaciya", "vzlom", "ukrali"
+    ],
+    "Spam": [
+      "реклама", "спам", "ненужная рассылка", "подписка без согласия", "акция только сегодня",
+      "reklama", "spam", "navyazchivaya rassylka"
+    ]
+  },
+  "positiveTone": [
+    "спасибо", "благодарю", "доволен", "отлично", "приятно", "spasibo", "blagodaryu", "otlichno"
+  ],
+  "negativeTone": [
+    "ужасно", "возмущен", "недоволен", "срочно", "проблема", "невозможно", "uzhasno", "vozmushen", "nedovolen",
+    "srochno", "problema", "верните", "не пришло", "не зачислено"
+  ]
+}

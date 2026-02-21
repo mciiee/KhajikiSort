@@ -5,21 +5,6 @@ namespace KhajikiSort.Nlp;
 
 public sealed class NlpMetadataExtractor
 {
-    private static readonly HashSet<char> KazakhSpecificLetters = new()
-    {
-        'ә', 'ғ', 'қ', 'ң', 'ө', 'ұ', 'ү', 'һ', 'і'
-    };
-    private static readonly HashSet<string> KazakhLatinSignals = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "salem", "salemetsiz", "otinemin", "kazaksha", "auystyr", "ozgertu", "derekter", "mekenzhai", "komek", "rakhmet", "zhane", "ushin",
-        "men", "ruyxatdan", "utolmayapman", "otolmayapman", "sabab", "nima", "kiralmadym", "akkauntqa", "tirkelu"
-    };
-    private static readonly HashSet<string> RussianLatinSignals = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "zdravstvuite", "pozhaluista", "proshu", "srochno", "oshibka", "prilozhenie", "zhaloba", "moshennichestvo", "spasibo", "nedovolen",
-        "schet", "prishlo", "vernite", "dengi", "vozvrat", "zachisleno"
-    };
-
     public AiMetadata Extract(string text, string? attachmentContext = null)
     {
         var effectiveText = string.IsNullOrWhiteSpace(attachmentContext) ? text : $"{text}\n{attachmentContext}";
@@ -50,7 +35,7 @@ public sealed class NlpMetadataExtractor
         };
 
         // Strong signal for KZ: unique Kazakh Cyrillic letters.
-        var kzUniqueCharCount = normalizedText.Count(c => KazakhSpecificLetters.Contains(c));
+        var kzUniqueCharCount = normalizedText.Count(c => KeywordDictionaries.KazakhSpecificLetters.Contains(c));
         if (kzUniqueCharCount > 0)
         {
             scores[LanguageCode.KZ] += kzUniqueCharCount * 3;
@@ -67,12 +52,12 @@ public sealed class NlpMetadataExtractor
 
         foreach (var token in tokens)
         {
-            if (KazakhLatinSignals.Contains(token))
+            if (KeywordDictionaries.KazakhLatinSignals.Contains(token))
             {
                 scores[LanguageCode.KZ] += 2;
             }
 
-            if (RussianLatinSignals.Contains(token))
+            if (KeywordDictionaries.RussianLatinSignals.Contains(token))
             {
                 scores[LanguageCode.RU] += 2;
             }

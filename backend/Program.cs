@@ -1,3 +1,4 @@
+using Microsoft.Extensions.FileProviders;
 using System.Text.Json.Serialization;
 using KhajikiSort.Data;
 using KhajikiSort.Nlp;
@@ -12,9 +13,15 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 var extractor = new NlpMetadataExtractor();
 var router = new RoutingEngine();
 
-var tickets = DatasetLoader.LoadTickets("tickets.csv");
-var managers = DatasetLoader.LoadManagers("managers.csv");
-var businessUnits = DatasetLoader.LoadBusinessUnits("business_units.csv");
+var backendDir = AppContext.BaseDirectory;
+var projectDir = Path.GetFullPath(Path.Combine(backendDir, "..", "..", "..", ".."));
+var datasetsDir = Path.Combine(projectDir, "datasets");
+var frontendDir = Path.Combine(projectDir, "frontend");
+var outputPath = Path.Combine(datasetsDir, "routing_results.csv");
+
+var tickets = DatasetLoader.LoadTickets(Path.Combine(datasetsDir, "tickets.csv"));
+var managers = DatasetLoader.LoadManagers(Path.Combine(datasetsDir, "managers.csv"));
+var businessUnits = DatasetLoader.LoadBusinessUnits(Path.Combine(datasetsDir, "business_units.csv"));
 
 var results = new List<KhajikiSort.Models.ProcessedTicket>(tickets.Count);
 
@@ -26,10 +33,16 @@ foreach (var ticket in tickets)
     results.Add(processed);
 }
 
-RoutingResultWriter.Write("routing_results.csv", results);
+RoutingResultWriter.Write(outputPath, results);
 var app = builder.Build();
-app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseDefaultFiles(new DefaultFilesOptions
+{
+    FileProvider = new PhysicalFileProvider(frontendDir)
+});
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(frontendDir)
+});
 
 var generatedAtUtc = DateTime.UtcNow;
 var dashboardPayload = new
@@ -71,6 +84,7 @@ app.MapGet("/api/dashboard", () => Results.Ok(dashboardPayload));
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok", totalTickets = results.Count }));
 
 Console.WriteLine($"Processed {results.Count} tickets");
+Console.WriteLine($"Output CSV: {outputPath}");
 var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://localhost:5000";
 Console.WriteLine($"UI: {urls}");
 Console.WriteLine($"API: {urls.TrimEnd('/')}/api/dashboard");

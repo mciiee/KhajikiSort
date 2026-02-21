@@ -5,9 +5,9 @@ Automatic after-hours ticket processing and assignment service for multilingual 
 ## Features
 
 - Reads real datasets from CSV:
-  - `tickets.csv`
-  - `managers.csv`
-  - `business_units.csv`
+  - `datasets/tickets.csv`
+  - `datasets/managers.csv`
+  - `datasets/business_units.csv`
 - NLP metadata extraction per ticket:
   - `RequestType`: `Complaint`, `DataChange`, `Consultation`, `Claim`, `AppFailure`, `FraudulentActivity`, `Spam`
   - `Tone`: `Positive`, `Neutral`, `Negative`
@@ -22,7 +22,7 @@ Automatic after-hours ticket processing and assignment service for multilingual 
   - round-robin among 2 least-loaded candidates
   - fallback to nearest city with eligible manager if origin city has no candidates
 - Outputs:
-  - `routing_results.csv`
+  - `datasets/routing_results.csv`
   - Web UI dashboard
   - JSON API endpoints
 
@@ -37,18 +37,21 @@ Automatic after-hours ticket processing and assignment service for multilingual 
 From project root:
 
 ```bash
+cd backend
 dotnet run
 ```
 
 If port `5000` is busy:
 
 ```bash
+cd backend
 ASPNETCORE_URLS=http://localhost:5001 dotnet run
 ```
 
 If your environment restricts CLI home writes:
 
 ```bash
+cd backend
 DOTNET_CLI_HOME=/tmp DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 dotnet run
 ```
 
@@ -70,12 +73,14 @@ DOTNET_CLI_HOME=/tmp DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 dotnet run
 
 ## Project Structure
 
-- `Program.cs` - app startup, data processing, API exposure
-- `Data/` - CSV parsing/loading and results writer
-- `Nlp/` - dictionaries, language detection, request/tone extraction, attachments analyzer
-- `Routing/` - assignment logic and nearest-city fallback
-- `Models/` - domain + metadata models
-- `wwwroot/index.html` - dashboard UI
+- `backend/Program.cs` - app startup, data processing, API exposure
+- `backend/Data/` - CSV parsing/loading and results writer
+- `backend/Nlp/` - dictionaries, language detection, request/tone extraction, attachments analyzer
+- `backend/Routing/` - assignment logic and nearest-city fallback
+- `backend/Models/` - domain + metadata models
+- `frontend/index.html` - dashboard UI
+- `datasets/` - input CSV files + generated `routing_results.csv`
+- `datasets/attachments/` - attachment files directory
 
 ## Notes
 

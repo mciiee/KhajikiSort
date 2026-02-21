@@ -67,8 +67,12 @@ nunit-*.xml
 
 # Generated outputs
 routing_results.csv
+datasets/routing_results.csv
 
 # Local datasets (can contain sensitive data)
 tickets.csv
 managers.csv
 business_units.csv
+datasets/tickets.csv
+datasets/managers.csv
+datasets/business_units.csv
