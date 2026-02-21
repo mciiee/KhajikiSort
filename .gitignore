@@ -52,3 +52,23 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# IDE / editor
+.idea/
+.vscode/
+.vs/
+*.user
+*.suo
+
+# Runtime / local temp
+*.log
+*.tmp
+*.pid
+
+# Generated outputs
+routing_results.csv
+
+# Local datasets (can contain sensitive data)
+tickets.csv
+managers.csv
+business_units.csv

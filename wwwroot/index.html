@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FIRE Routing Dashboard</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --accent: #0b5fff;
+      --accent-soft: #e9f0ff;
+      --warn: #b42318;
+      --ok: #027a48;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Noto Sans", "Helvetica Neue", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 10% -20%, #dbe7ff 0%, transparent 55%),
+        radial-gradient(800px 450px at 100% -25%, #d9f3ec 0%, transparent 55%),
+        var(--bg);
+    }
+    .wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: 0.2px;
+    }
+    .muted { color: var(--muted); }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+    }
+    .card .label { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+    .card .value { font-size: 28px; font-weight: 700; }
+    .warn { color: var(--warn); }
+    .ok { color: var(--ok); }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+      margin-bottom: 14px;
+    }
+    .filters {
+      padding: 14px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 6px; }
+    select, input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #d0d5dd;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+    }
+    .stats {
+      padding: 14px;
+      border-top: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: repeat(3, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .list {
+      margin: 0;
+      padding-left: 16px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #344054;
+    }
+    .table-wrap {
+      overflow: auto;
+      max-height: 65vh;
+      border-top: 1px solid var(--line);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 1200px;
+    }
+    thead th {
+      position: sticky;
+      top: 0;
+      background: #f9fafb;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      padding: 10px 8px;
+      font-weight: 600;
+      z-index: 1;
+    }
+    tbody td {
+      border-bottom: 1px solid #f1f2f4;
+      padding: 8px;
+      vertical-align: top;
+    }
+    tbody tr:hover { background: #f8fbff; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: var(--accent-soft);
+      color: #164abf;
+      border: 1px solid #c8d8ff;
+    }
+    .danger {
+      background: #fde8e8;
+      color: #b42318;
+      border: 1px solid #f7caca;
+    }
+    .mono {
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 12px;
+    }
+    @media (max-width: 980px) {
+      .cards { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
+      .filters { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+      .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>FIRE Routing Dashboard</h1>
+        <div id="meta" class="muted">Loading...</div>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="label">Total Tickets</div>
+        <div id="totalTickets" class="value">-</div>
+      </div>
+      <div class="card">
+        <div class="label">Unassigned</div>
+        <div id="unassignedTickets" class="value warn">-</div>
+      </div>
+      <div class="card">
+        <div class="label">With Image Attachments</div>
+        <div id="withImages" class="value ok">-</div>
+      </div>
+      <div class="card">
+        <div class="label">Filtered Rows</div>
+        <div id="filteredRows" class="value">-</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="filters">
+        <div>
+          <label for="typeFilter">Request Type</label>
+          <select id="typeFilter"><option value="">All</option></select>
+        </div>
+        <div>
+          <label for="toneFilter">Tone</label>
+          <select id="toneFilter"><option value="">All</option></select>
+        </div>
+        <div>
+          <label for="langFilter">Language</label>
+          <select id="langFilter"><option value="">All</option></select>
+        </div>
+        <div>
+          <label for="officeFilter">Office</label>
+          <select id="officeFilter"><option value="">All</option></select>
+        </div>
+        <div>
+          <label for="searchFilter">Search (Summary / Reason)</label>
+          <input id="searchFilter" type="text" placeholder="keyword">
+        </div>
+      </div>
+      <div class="stats">
+        <div>
+          <div class="muted">Request Type Breakdown</div>
+          <ul id="requestTypeBreakdown" class="list"></ul>
+        </div>
+        <div>
+          <div class="muted">Tone Breakdown</div>
+          <ul id="toneBreakdown" class="list"></ul>
+        </div>
+        <div>
+          <div class="muted">Office Breakdown</div>
+          <ul id="officeBreakdown" class="list"></ul>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+          <tr>
+            <th>Client ID</th>
+            <th>Segment</th>
+            <th>Request Type</th>
+            <th>Tone</th>
+            <th>Priority</th>
+            <th>Lang</th>
+            <th>Images</th>
+            <th>Office</th>
+            <th>Manager</th>
+            <th>Summary</th>
+            <th>Reason</th>
+          </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = { allTickets: [], filteredTickets: [] };
+
+    const el = {
+      meta: document.getElementById("meta"),
+      totalTickets: document.getElementById("totalTickets"),
+      unassignedTickets: document.getElementById("unassignedTickets"),
+      withImages: document.getElementById("withImages"),
+      filteredRows: document.getElementById("filteredRows"),
+      typeFilter: document.getElementById("typeFilter"),
+      toneFilter: document.getElementById("toneFilter"),
+      langFilter: document.getElementById("langFilter"),
+      officeFilter: document.getElementById("officeFilter"),
+      searchFilter: document.getElementById("searchFilter"),
+      requestTypeBreakdown: document.getElementById("requestTypeBreakdown"),
+      toneBreakdown: document.getElementById("toneBreakdown"),
+      officeBreakdown: document.getElementById("officeBreakdown"),
+      rows: document.getElementById("rows")
+    };
+
+    init();
+
+    async function init() {
+      const res = await fetch("/api/dashboard");
+      const data = await res.json();
+      state.allTickets = data.tickets;
+      state.filteredTickets = data.tickets;
+
+      el.totalTickets.textContent = data.totalTickets;
+      el.unassignedTickets.textContent = data.unassignedTickets;
+      el.withImages.textContent = data.ticketsWithImages;
+      el.filteredRows.textContent = data.tickets.length;
+      el.meta.textContent = "Generated: " + new Date(data.generatedAtUtc).toLocaleString();
+
+      fillOptions(el.typeFilter, uniq(data.tickets.map(t => t.requestType)));
+      fillOptions(el.toneFilter, uniq(data.tickets.map(t => t.tone)));
+      fillOptions(el.langFilter, uniq(data.tickets.map(t => t.language)));
+      fillOptions(el.officeFilter, uniq(data.tickets.map(t => t.selectedOffice)));
+
+      renderList(el.requestTypeBreakdown, data.requestTypeBreakdown);
+      renderList(el.toneBreakdown, data.toneBreakdown);
+      renderList(el.officeBreakdown, data.officeBreakdown);
+      renderTable(state.filteredTickets);
+
+      [el.typeFilter, el.toneFilter, el.langFilter, el.officeFilter, el.searchFilter]
+        .forEach(node => node.addEventListener("input", applyFilters));
+    }
+
+    function applyFilters() {
+      const type = el.typeFilter.value;
+      const tone = el.toneFilter.value;
+      const lang = el.langFilter.value;
+      const office = el.officeFilter.value;
+      const q = el.searchFilter.value.trim().toLowerCase();
+
+      state.filteredTickets = state.allTickets.filter(t => {
+        if (type && t.requestType !== type) return false;
+        if (tone && t.tone !== tone) return false;
+        if (lang && t.language !== lang) return false;
+        if (office && t.selectedOffice !== office) return false;
+        if (q) {
+          const hay = (t.summary + " " + t.assignmentReason + " " + t.clientId).toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      el.filteredRows.textContent = state.filteredTickets.length;
+      renderTable(state.filteredTickets);
+    }
+
+    function renderTable(rows) {
+      el.rows.innerHTML = rows.map(t => {
+        const unassigned = t.selectedManager === "UNASSIGNED";
+        return `<tr>
+          <td class="mono">${escapeHtml(t.clientId)}</td>
+          <td>${escapeHtml(t.segment)}</td>
+          <td><span class="tag">${escapeHtml(t.requestType)}</span></td>
+          <td>${escapeHtml(t.tone)}</td>
+          <td>${t.priority}</td>
+          <td>${escapeHtml(t.language)}</td>
+          <td>${t.imageAttachmentCount}</td>
+          <td>${escapeHtml(t.selectedOffice)}</td>
+          <td><span class="tag ${unassigned ? "danger" : ""}">${escapeHtml(t.selectedManager)}</span></td>
+          <td>${escapeHtml(t.summary)}</td>
+          <td>${escapeHtml(t.assignmentReason)}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    function fillOptions(select, values) {
+      for (const value of values) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+      }
+    }
+
+    function uniq(arr) {
+      return [...new Set(arr)].sort((a, b) => a.localeCompare(b));
+    }
+
+    function renderList(node, items) {
+      node.innerHTML = items.map(i => `<li>${escapeHtml(i.key)}: <strong>${i.count}</strong></li>`).join("");
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+  </script>
+</body>
+</html>
