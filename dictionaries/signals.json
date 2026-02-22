@@ -1,0 +1,14 @@
+{
+  "kazakhLatinSignals": [
+    "salem", "salemetsiz", "otinemin", "kazaksha", "auystyr", "ozgertu", "derekter", "mekenzhai", "komek",
+    "rakhmet", "zhane", "ushin", "men", "ruyxatdan", "utolmayapman", "otolmayapman", "sabab", "nima",
+    "kiralmadym", "akkauntqa", "tirkelu"
+  ],
+  "russianLatinSignals": [
+    "zdravstvuite", "pozhaluista", "proshu", "srochno", "oshibka", "prilozhenie", "zhaloba", "moshennichestvo",
+    "spasibo", "nedovolen", "schet", "prishlo", "vernite", "dengi", "vozvrat", "zachisleno"
+  ],
+  "kazakhSpecificLetters": [
+    "ә", "ғ", "қ", "ң", "ө", "ұ", "ү", "һ", "і"
+  ]
+}

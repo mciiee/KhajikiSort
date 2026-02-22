@@ -13,10 +13,10 @@ public sealed class NlpMetadataExtractor
         var requestType = DetectRequestType(normalized, language);
         var tone = DetectTone(normalized, language);
         var priority = CalculatePriority(requestType, tone);
-        var summary = BuildSummary(text, requestType, tone);
-        var recommendation = BuildRecommendation(requestType);
+        var summary = BuildSummary(text, requestType, tone, language);
+        var recommendation = BuildRecommendation(requestType, language);
 
-        return new AiMetadata(requestType, tone, priority, language, summary, recommendation);
+        return new AiMetadata(requestType, tone, priority, language, summary, recommendation, string.Empty, "RulesFallback");
     }
 
     private static string Normalize(string text)
@@ -85,6 +85,12 @@ public sealed class NlpMetadataExtractor
 
     private static RequestType DetectRequestType(string normalizedText, LanguageCode language)
     {
+        var hardOverride = DetectHardOverrideRequestType(normalizedText);
+        if (hardOverride is not null)
+        {
+            return hardOverride.Value;
+        }
+
         var langKeywords = KeywordDictionaries.RequestTypeKeywords[language];
         var scores = new Dictionary<RequestType, int>();
 
@@ -115,7 +121,19 @@ public sealed class NlpMetadataExtractor
         }
 
         var fallback = scores.OrderByDescending(x => x.Value).First();
-        return fallback.Value == 0 ? RequestType.Consultation : fallback.Key;
+        if (fallback.Value == 0)
+        {
+            var secondary = DetectSecondaryOverrideRequestType(normalizedText);
+            return secondary ?? RequestType.Consultation;
+        }
+
+        if (fallback.Key == RequestType.Consultation)
+        {
+            var secondary = DetectSecondaryOverrideRequestType(normalizedText);
+            return secondary ?? fallback.Key;
+        }
+
+        return fallback.Key;
     }
 
     private static Tone DetectTone(string normalizedText, LanguageCode language)
@@ -162,7 +180,7 @@ public sealed class NlpMetadataExtractor
         return Math.Clamp(adjusted, 1, 10);
     }
 
-    private static string BuildSummary(string originalText, RequestType requestType, Tone tone)
+    private static string BuildSummary(string originalText, RequestType requestType, Tone tone, LanguageCode language)
     {
         var sentence = originalText
             .Split(['.', '!', '?'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -179,21 +197,150 @@ public sealed class NlpMetadataExtractor
             sentence = sentence[..180] + "...";
         }
 
-        return $"Client message: {sentence}. Classified as {requestType} with {tone} tone.";
+        return language switch
+        {
+            LanguageCode.RU => $"Сообщение клиента: {sentence}. Класс: {ToRuRequestType(requestType)}, тон: {ToRuTone(tone)}.",
+            LanguageCode.KZ => $"Клиент хабары: {sentence}. Санаты: {ToKzRequestType(requestType)}, тон: {ToKzTone(tone)}.",
+            _ => $"Client message: {sentence}. Classified as {requestType} with {tone} tone."
+        };
     }
 
-    private static string BuildRecommendation(RequestType requestType)
+    private static string BuildRecommendation(RequestType requestType, LanguageCode language)
     {
-        return requestType switch
+        return language switch
         {
-            RequestType.FraudulentActivity => "Escalate immediately to anti-fraud team and freeze risky operations for verification.",
-            RequestType.AppFailure => "Open technical incident, collect logs/screenshots, and provide workaround to the client.",
-            RequestType.Claim => "Create formal claim workflow and set response deadline according to policy.",
-            RequestType.Complaint => "Assign to responsible manager and provide empathy-first response with concrete resolution steps.",
-            RequestType.DataChange => "Verify identity, confirm requested fields, then process data update under compliance rules.",
-            RequestType.Consultation => "Route to advisor with relevant product expertise and send clear FAQ links.",
-            RequestType.Spam => "Mark as spam, suppress sender/channel if policy allows, and avoid manager workload.",
-            _ => "Route to first-line support for manual triage."
+            LanguageCode.RU => requestType switch
+            {
+                RequestType.FraudulentActivity => "Срочно эскалируйте в антифрод и временно ограничьте рискованные операции до проверки.",
+                RequestType.AppFailure => "Откройте техинцидент, соберите логи/скриншоты и дайте клиенту временный обходной путь.",
+                RequestType.Claim => "Запустите процесс претензии и зафиксируйте срок ответа по регламенту.",
+                RequestType.Complaint => "Назначьте ответственному менеджеру и дайте эмпатичный ответ с конкретными шагами решения.",
+                RequestType.DataChange => "Проверьте личность клиента и выполните изменение данных по процедуре комплаенса.",
+                RequestType.Consultation => "Передайте профильному менеджеру и отправьте понятные материалы/FAQ.",
+                RequestType.Spam => "Пометьте как спам и исключите из операционной очереди менеджеров.",
+                _ => "Передайте на ручную первичную проверку."
+            },
+            LanguageCode.KZ => requestType switch
+            {
+                RequestType.FraudulentActivity => "Anti-fraud тобына дереу жіберіп, тексеріс біткенше тәуекел операцияларын шектеңіз.",
+                RequestType.AppFailure => "Техникалық инцидент ашып, лог/скриншот жинап, клиентке уақытша шешім беріңіз.",
+                RequestType.Claim => "Ресми шағым процесін бастап, жауап мерзімін регламент бойынша бекітіңіз.",
+                RequestType.Complaint => "Жауапты менеджерге беріп, нақты шешу қадамдарымен эмпатиялық жауап дайындаңыз.",
+                RequestType.DataChange => "Клиентті верификациялап, дерек өзгерісін комплаенс талабымен орындаңыз.",
+                RequestType.Consultation => "Тиісті маманға бағыттап, қысқа әрі нақты FAQ/нұсқаулық беріңіз.",
+                RequestType.Spam => "Спам ретінде белгілеп, менеджер кезегінен алып тастаңыз.",
+                _ => "Қолмен бастапқы тексеруге жіберіңіз."
+            },
+            _ => requestType switch
+            {
+                RequestType.FraudulentActivity => "Escalate immediately to anti-fraud and freeze risky operations pending verification.",
+                RequestType.AppFailure => "Open a technical incident, collect logs/screenshots, and provide a workaround to the client.",
+                RequestType.Claim => "Create a formal claim workflow and set response deadline according to policy.",
+                RequestType.Complaint => "Assign to a responsible manager and provide an empathy-first response with concrete steps.",
+                RequestType.DataChange => "Verify identity, confirm requested fields, and process the data update under compliance rules.",
+                RequestType.Consultation => "Route to an advisor with relevant product expertise and share concise FAQ guidance.",
+                RequestType.Spam => "Mark as spam and suppress from manager workload.",
+                _ => "Route to first-line support for manual triage."
+            }
         };
+    }
+
+    private static string ToRuRequestType(RequestType requestType) => requestType switch
+    {
+        RequestType.Complaint => "Жалоба",
+        RequestType.DataChange => "Смена данных",
+        RequestType.Consultation => "Консультация",
+        RequestType.Claim => "Претензия",
+        RequestType.AppFailure => "Неработоспособность приложения",
+        RequestType.FraudulentActivity => "Мошеннические действия",
+        RequestType.Spam => "Спам",
+        _ => requestType.ToString()
+    };
+
+    private static string ToRuTone(Tone tone) => tone switch
+    {
+        Tone.Positive => "Позитивный",
+        Tone.Negative => "Негативный",
+        _ => "Нейтральный"
+    };
+
+    private static string ToKzRequestType(RequestType requestType) => requestType switch
+    {
+        RequestType.Complaint => "Шағым",
+        RequestType.DataChange => "Дерек өзгерту",
+        RequestType.Consultation => "Кеңес",
+        RequestType.Claim => "Талап/Претензия",
+        RequestType.AppFailure => "Қосымша істемейді",
+        RequestType.FraudulentActivity => "Алаяқтық әрекеттер",
+        RequestType.Spam => "Спам",
+        _ => requestType.ToString()
+    };
+
+    private static string ToKzTone(Tone tone) => tone switch
+    {
+        Tone.Positive => "Позитивті",
+        Tone.Negative => "Негативті",
+        _ => "Бейтарап"
+    };
+
+    private static RequestType? DetectHardOverrideRequestType(string normalizedText)
+    {
+        var hasLink = ContainsAny(normalizedText, "http", "https", "utm_", "safelinks", "protection outlook");
+        var hasPromo = ContainsAny(normalizedText,
+            "выгодное предложение", "в наличии", "акция", "скидк", "купить", "реклама",
+            "promo", "special offer", "marketing", "advertis");
+        if (hasLink && hasPromo)
+        {
+            return RequestType.Spam;
+        }
+
+        if (ContainsAny(normalizedText,
+                "спам", "spam", "junk", "unsolicited", "реклама", "акция", "скидка", "buy now", "promo"))
+        {
+            return RequestType.Spam;
+        }
+
+        if (ContainsAny(normalizedText,
+                "мошенн", "fraud", "scam", "unauthorized", "подозр", "взлом", "ukrali", "алаяқ", "alaiak"))
+        {
+            return RequestType.FraudulentActivity;
+        }
+
+        if (ContainsAny(normalizedText,
+                "не работает", "ошибка", "вылет", "не могу войти", "cannot login", "cannot register", "blocked in app",
+                "код не приходит", "sms не приходит", "ruyxatdan utolmayapman", "app failure", "application not working"))
+        {
+            return RequestType.AppFailure;
+        }
+
+        if (ContainsAny(normalizedText,
+                "верните деньги", "refund", "не пришло на счет", "не зачис", "компенса", "претенз", "chargeback", "money not received"))
+        {
+            return RequestType.Claim;
+        }
+
+        if (ContainsAny(normalizedText,
+                "смена данных", "изменить", "обновить номер", "телефонды өзгерту", "мекенжайды өзгерту", "derekterdi ozgertu", "update phone", "change data"))
+        {
+            return RequestType.DataChange;
+        }
+
+        return null;
+    }
+
+    private static RequestType? DetectSecondaryOverrideRequestType(string normalizedText)
+    {
+        if (ContainsAny(normalizedText,
+                "жалоб", "недовол", "возмущ", "ужасн", "суд подам", "не имеете права", "unhappy", "frustrated"))
+        {
+            return RequestType.Complaint;
+        }
+
+        return null;
+    }
+
+    private static bool ContainsAny(string text, params string[] probes)
+    {
+        return probes.Any(p => text.Contains(p, StringComparison.OrdinalIgnoreCase));
     }
 }

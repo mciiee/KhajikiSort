@@ -8,7 +8,7 @@ public static class RoutingResultWriter
     public static void Write(string path, IReadOnlyCollection<ProcessedTicket> rows)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("ClientId,Segment,Language,RequestType,Tone,Priority,HasImageAttachment,SelectedOffice,SelectedManager,AssignmentReason,Summary");
+        sb.AppendLine("ClientId,Segment,Language,RequestType,Tone,Priority,HasImageAttachment,SelectedOffice,SelectedManager,AssignmentReason,Summary,ManagerSummary,Recommendation,ImageAnalysis,AnalysisSource");
 
         foreach (var row in rows)
         {
@@ -24,7 +24,11 @@ public static class RoutingResultWriter
                 row.SelectedOffice,
                 row.SelectedManager ?? "UNASSIGNED",
                 row.AssignmentReason,
-                row.AiMetadata.Summary
+                row.AiMetadata.Summary,
+                ManagerSummaryFormatter.Build(row.AiMetadata.Summary, row.AiMetadata.Recommendation),
+                row.AiMetadata.Recommendation,
+                row.AiMetadata.ImageAnalysis,
+                row.AiMetadata.AnalysisSource
             };
 
             sb.AppendLine(string.Join(',', values.Select(Escape)));

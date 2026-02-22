@@ -73,7 +73,10 @@ internal static class KeywordDictionaries
         }
 
         var json = File.ReadAllText(path);
-        var dto = JsonSerializer.Deserialize<T>(json);
+        var dto = JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
         if (dto is null)
         {
             throw new InvalidOperationException($"Failed to deserialize dictionary file: {path}");
@@ -88,6 +91,7 @@ internal static class KeywordDictionaries
         var candidatePaths = new[]
         {
             Path.Combine(baseDir, "Dictionaries"),
+            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "dictionaries")),
             Path.Combine(baseDir, "Nlp", "Dictionaries"),
             Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "Nlp", "Dictionaries"))
         };

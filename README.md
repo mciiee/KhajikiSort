@@ -37,6 +37,7 @@ Automatic after-hours ticket processing and assignment service for multilingual 
 From project root:
 
 ```bash
+docker compose up -d
 cd backend
 dotnet run
 ```
@@ -55,11 +56,43 @@ cd backend
 DOTNET_CLI_HOME=/tmp DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 dotnet run
 ```
 
+For Gemma AI analysis:
+
+```bash
+export FIRE_GEMMA_API_KEY="your_api_key_here"
+export FIRE_GEMMA_MODEL="gemma-3-4b-it"
+```
+
 ## UI and API
 
 - UI: `http://localhost:5000`
 - Health: `http://localhost:5000/api/health`
 - Dashboard data: `http://localhost:5000/api/dashboard`
+- Adminer (DB UI): `http://localhost:8080`
+
+## PostgreSQL Export
+
+On startup, backend exports:
+
+- source datasets (`tickets`, `managers`, `business_units`)
+- routing output (`routed_tickets`)
+- dictionary terms (`ru/kz/eng/signals`)
+
+Connection string env var:
+
+```bash
+FIRE_PG_CONN="Host=localhost;Port=5432;Database=firedb;Username=fire;Password=fire"
+```
+
+Default connection is the same as Docker Compose credentials above.
+
+Main schema/tables:
+
+- `fire.source_tickets`
+- `fire.source_managers`
+- `fire.business_units`
+- `fire.routed_tickets`
+- `fire.dictionary_terms`
 
 ## Routing Logic (Business Rules)
 
@@ -78,6 +111,7 @@ DOTNET_CLI_HOME=/tmp DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 dotnet run
 - `backend/Nlp/` - dictionaries, language detection, request/tone extraction, attachments analyzer
 - `backend/Routing/` - assignment logic and nearest-city fallback
 - `backend/Models/` - domain + metadata models
+- `dictionaries/` - external NLP dictionaries (`ru.json`, `kz.json`, `eng.json`, `signals.json`)
 - `frontend/index.html` - dashboard UI
 - `datasets/` - input CSV files + generated `routing_results.csv`
 - `datasets/attachments/` - attachment files directory
@@ -86,4 +120,5 @@ DOTNET_CLI_HOME=/tmp DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 dotnet run
 
 - Dictionaries are heuristic and can be expanded for domain phrases.
 - Current NLP is rule-based (no external LLM call).
+- If `FIRE_GEMMA_API_KEY` is set, Gemma is used for AI analysis (request type, tone, priority, summary, recommendation, image analysis) with rule-based fallback on API failure.
 - Dataset files are ignored by default in `.gitignore`.

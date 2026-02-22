@@ -34,7 +34,7 @@
     .topbar {
       display: flex;
       justify-content: space-between;
-      align-items: baseline;
+      align-items: center;
       gap: 16px;
       margin-bottom: 16px;
     }
@@ -46,9 +46,27 @@
     .muted { color: var(--muted); }
     .cards {
       display: grid;
-      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      grid-template-columns: repeat(6, minmax(160px, 1fr));
       gap: 12px;
       margin-bottom: 14px;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    button.primary {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.primary:disabled {
+      opacity: 0.65;
+      cursor: wait;
     }
     .card {
       background: var(--panel);
@@ -89,6 +107,25 @@
       display: grid;
       grid-template-columns: repeat(3, minmax(200px, 1fr));
       gap: 12px;
+    }
+    .analysis {
+      padding: 14px;
+      border-top: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 12px;
+    }
+    .log-box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f9fafb;
+      max-height: 180px;
+      overflow: auto;
+      padding: 8px;
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
     }
     .list {
       margin: 0;
@@ -146,6 +183,7 @@
       .cards { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
       .filters { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
       .stats { grid-template-columns: 1fr; }
+      .analysis { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -155,6 +193,10 @@
       <div>
         <h1>FIRE Routing Dashboard</h1>
         <div id="meta" class="muted">Loading...</div>
+      </div>
+      <div class="actions">
+        <button id="analyzeBtn" class="primary">Analyze Tickets</button>
+        <div id="analysisState" class="muted"></div>
       </div>
     </div>
 
@@ -174,6 +216,14 @@
       <div class="card">
         <div class="label">Filtered Rows</div>
         <div id="filteredRows" class="value">-</div>
+      </div>
+      <div class="card">
+        <div class="label">Gemma Analyzed</div>
+        <div id="geminiAnalyzed" class="value ok">-</div>
+      </div>
+      <div class="card">
+        <div class="label">Fallback Analyzed</div>
+        <div id="fallbackAnalyzed" class="value warn">-</div>
       </div>
     </div>
 
@@ -214,6 +264,16 @@
           <ul id="officeBreakdown" class="list"></ul>
         </div>
       </div>
+      <div class="analysis">
+        <div>
+          <div class="muted">Analysis Progress</div>
+          <ul id="analysisProgress" class="list"></ul>
+        </div>
+        <div>
+          <div class="muted">Recent Logs</div>
+          <pre id="analysisLogs" class="log-box"></pre>
+        </div>
+      </div>
 
       <div class="table-wrap">
         <table>
@@ -228,7 +288,11 @@
             <th>Images</th>
             <th>Office</th>
             <th>Manager</th>
-            <th>Summary</th>
+            <th>Client Text</th>
+            <th>AI Summary</th>
+            <th>Manager Summary</th>
+            <th>Image Analysis</th>
+            <th>AI Source</th>
             <th>Reason</th>
           </tr>
           </thead>
@@ -247,11 +311,17 @@
       unassignedTickets: document.getElementById("unassignedTickets"),
       withImages: document.getElementById("withImages"),
       filteredRows: document.getElementById("filteredRows"),
+      geminiAnalyzed: document.getElementById("geminiAnalyzed"),
+      fallbackAnalyzed: document.getElementById("fallbackAnalyzed"),
       typeFilter: document.getElementById("typeFilter"),
       toneFilter: document.getElementById("toneFilter"),
       langFilter: document.getElementById("langFilter"),
       officeFilter: document.getElementById("officeFilter"),
       searchFilter: document.getElementById("searchFilter"),
+      analyzeBtn: document.getElementById("analyzeBtn"),
+      analysisState: document.getElementById("analysisState"),
+      analysisProgress: document.getElementById("analysisProgress"),
+      analysisLogs: document.getElementById("analysisLogs"),
       requestTypeBreakdown: document.getElementById("requestTypeBreakdown"),
       toneBreakdown: document.getElementById("toneBreakdown"),
       officeBreakdown: document.getElementById("officeBreakdown"),
@@ -261,29 +331,87 @@
     init();
 
     async function init() {
+      [el.typeFilter, el.toneFilter, el.langFilter, el.officeFilter, el.searchFilter]
+        .forEach(node => node.addEventListener("input", applyFilters));
+      el.analyzeBtn.addEventListener("click", startAnalyze);
+
+      await refreshDashboard();
+      setInterval(refreshDashboard, 2000);
+    }
+
+    async function startAnalyze() {
+      el.analyzeBtn.disabled = true;
+      try {
+        const res = await fetch("/api/analyze", { method: "POST" });
+        if (!res.ok && res.status !== 202 && res.status !== 409) {
+          throw new Error("Analyze request failed with status " + res.status);
+        }
+      } catch (err) {
+        el.analysisState.textContent = String(err);
+      } finally {
+        await refreshDashboard();
+      }
+    }
+
+    async function refreshDashboard() {
       const res = await fetch("/api/dashboard");
       const data = await res.json();
       state.allTickets = data.tickets;
-      state.filteredTickets = data.tickets;
+      refillFilters(data.tickets);
 
-      el.totalTickets.textContent = data.totalTickets;
-      el.unassignedTickets.textContent = data.unassignedTickets;
-      el.withImages.textContent = data.ticketsWithImages;
-      el.filteredRows.textContent = data.tickets.length;
-      el.meta.textContent = "Generated: " + new Date(data.generatedAtUtc).toLocaleString();
-
-      fillOptions(el.typeFilter, uniq(data.tickets.map(t => t.requestType)));
-      fillOptions(el.toneFilter, uniq(data.tickets.map(t => t.tone)));
-      fillOptions(el.langFilter, uniq(data.tickets.map(t => t.language)));
-      fillOptions(el.officeFilter, uniq(data.tickets.map(t => t.selectedOffice)));
-
+      applyFilters();
+      updateHeader(data);
+      updateAnalysis(data.analysis);
       renderList(el.requestTypeBreakdown, data.requestTypeBreakdown);
       renderList(el.toneBreakdown, data.toneBreakdown);
       renderList(el.officeBreakdown, data.officeBreakdown);
-      renderTable(state.filteredTickets);
+    }
 
-      [el.typeFilter, el.toneFilter, el.langFilter, el.officeFilter, el.searchFilter]
-        .forEach(node => node.addEventListener("input", applyFilters));
+    function updateHeader(data) {
+      el.totalTickets.textContent = data.totalTickets;
+      el.unassignedTickets.textContent = data.unassignedTickets;
+      el.withImages.textContent = data.ticketsWithImages;
+      el.geminiAnalyzed.textContent = data.gemmaAnalyzedTickets ?? 0;
+      el.fallbackAnalyzed.textContent = data.fallbackAnalyzedTickets ?? 0;
+      el.meta.textContent = "Generated: " + new Date(data.generatedAtUtc).toLocaleString();
+    }
+
+    function updateAnalysis(analysis) {
+      const inProgress = analysis?.isAnalyzing === true;
+      const done = analysis?.analyzedCount ?? 0;
+      const total = analysis?.totalTickets ?? 0;
+      const startedAt = analysis?.startedAtUtc ? new Date(analysis.startedAtUtc).toLocaleString() : "-";
+      const finishedAt = analysis?.finishedAtUtc ? new Date(analysis.finishedAtUtc).toLocaleString() : "-";
+
+      el.analysisState.textContent = inProgress ? "Analyzing..." : "Idle";
+      el.analyzeBtn.disabled = inProgress;
+      el.analysisProgress.innerHTML = `
+        <li>Processed: <strong>${done}</strong> / ${total}</li>
+        <li>Started: <strong>${escapeHtml(startedAt)}</strong></li>
+        <li>Finished: <strong>${escapeHtml(finishedAt)}</strong></li>
+        <li>Last Error: <strong>${escapeHtml(analysis?.lastError || "-")}</strong></li>
+      `;
+      el.analysisLogs.textContent = (analysis?.logs || []).join("\n");
+    }
+
+    function refillFilters(tickets) {
+      const currentType = el.typeFilter.value;
+      const currentTone = el.toneFilter.value;
+      const currentLang = el.langFilter.value;
+      const currentOffice = el.officeFilter.value;
+
+      resetFilter(el.typeFilter, uniq(tickets.map(t => t.requestType)), currentType);
+      resetFilter(el.toneFilter, uniq(tickets.map(t => t.tone)), currentTone);
+      resetFilter(el.langFilter, uniq(tickets.map(t => t.language)), currentLang);
+      resetFilter(el.officeFilter, uniq(tickets.map(t => t.selectedOffice)), currentOffice);
+    }
+
+    function resetFilter(select, values, previousValue) {
+      select.innerHTML = '<option value="">All</option>';
+      fillOptions(select, values);
+      if (values.includes(previousValue)) {
+        select.value = previousValue;
+      }
     }
 
     function applyFilters() {
@@ -299,7 +427,13 @@
         if (lang && t.language !== lang) return false;
         if (office && t.selectedOffice !== office) return false;
         if (q) {
-          const hay = (t.summary + " " + t.assignmentReason + " " + t.clientId).toLowerCase();
+          const hay = (
+            (t.summary || "") + " " +
+            (t.aiSummary || "") + " " +
+            (t.managerSummaryFull || t.managerSummary || "") + " " +
+            (t.imageAnalysis || "") + " " +
+            t.assignmentReason + " " + t.clientId
+          ).toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
@@ -323,6 +457,15 @@
           <td>${escapeHtml(t.selectedOffice)}</td>
           <td><span class="tag ${unassigned ? "danger" : ""}">${escapeHtml(t.selectedManager)}</span></td>
           <td>${escapeHtml(t.summary)}</td>
+          <td>${escapeHtml(t.aiSummary || "")}</td>
+          <td>
+            <details>
+              <summary>${escapeHtml(t.managerSummaryShort || t.managerSummary || "")}</summary>
+              <div>${escapeHtml(t.managerSummaryFull || t.managerSummary || "")}</div>
+            </details>
+          </td>
+          <td>${escapeHtml(t.imageAnalysis || "")}</td>
+          <td>${escapeHtml(t.analysisSource || "")}</td>
           <td>${escapeHtml(t.assignmentReason)}</td>
         </tr>`;
       }).join("");

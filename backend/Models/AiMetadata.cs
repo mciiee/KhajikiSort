@@ -6,5 +6,7 @@ public sealed record AiMetadata(
     int Priority,
     LanguageCode Language,
     string Summary,
-    string Recommendation
+    string Recommendation,
+    string ImageAnalysis,
+    string AnalysisSource
 );

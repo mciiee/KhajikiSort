@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fire-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: firedb
+      POSTGRES_USER: fire
+      POSTGRES_PASSWORD: fire
+    ports:
+      - "5432:5432"
+    volumes:
+      - fire_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fire -d firedb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  adminer:
+    image: adminer:4
+    container_name: fire-adminer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+volumes:
+  fire_pg_data:
