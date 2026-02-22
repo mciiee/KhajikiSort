@@ -27,5 +27,25 @@ services:
     ports:
       - "8080:8080"
 
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: fire-pgadmin
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@fire.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGPASS_FILE: /pgpass
+    ports:
+      - "5050:80"
+    volumes:
+      - fire_pgadmin_data:/var/lib/pgadmin
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./docker/pgadmin/pgpass:/pgpass:ro
+
 volumes:
   fire_pg_data:
+  fire_pgadmin_data:

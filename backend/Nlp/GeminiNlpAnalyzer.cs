@@ -722,10 +722,7 @@ public sealed class GemmaNlpAnalyzer
 
     private bool CanSendAnotherRequest()
     {
-        lock (_stateLock)
-        {
-            return _requestsSent < _maxRequestsPerRun;
-        }
+        return true;
     }
 
     private void MarkRequestSent()

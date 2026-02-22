@@ -4,6 +4,73 @@ namespace KhajikiSort.Data;
 
 public static class DatasetLoader
 {
+    public static List<Ticket> LoadTicketsFromMany(params string[] paths)
+    {
+        var merged = new List<Ticket>();
+        var idCounters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in ExistingPaths(paths))
+        {
+            foreach (var row in LoadTickets(path))
+            {
+                var ticket = row;
+                if (string.IsNullOrWhiteSpace(ticket.ClientId))
+                {
+                    continue;
+                }
+
+                if (!idCounters.TryAdd(ticket.ClientId, 1))
+                {
+                    idCounters[ticket.ClientId]++;
+                    var duplicateNo = idCounters[ticket.ClientId];
+                    ticket = ticket with { ClientId = $"{ticket.ClientId}__dup{duplicateNo}" };
+                }
+
+                merged.Add(ticket);
+            }
+        }
+
+        return merged;
+    }
+
+    public static List<Manager> LoadManagersFromMany(params string[] paths)
+    {
+        var merged = new Dictionary<string, Manager>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in ExistingPaths(paths))
+        {
+            foreach (var row in LoadManagers(path))
+            {
+                if (string.IsNullOrWhiteSpace(row.FullName))
+                {
+                    continue;
+                }
+
+                merged[row.FullName] = row;
+            }
+        }
+
+        return merged.Values.ToList();
+    }
+
+    public static List<BusinessUnit> LoadBusinessUnitsFromMany(params string[] paths)
+    {
+        var merged = new Dictionary<string, BusinessUnit>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in ExistingPaths(paths))
+        {
+            foreach (var row in LoadBusinessUnits(path))
+            {
+                if (string.IsNullOrWhiteSpace(row.Office))
+                {
+                    continue;
+                }
+
+                merged[row.Office] = row;
+            }
+        }
+
+        return merged.Values.ToList();
+    }
+
     public static List<Ticket> LoadTickets(string path)
     {
         return CsvTableReader.ReadRows(path).Select(row => new Ticket(
@@ -70,5 +137,28 @@ public static class DatasetLoader
     private static int ParseInt(string raw)
     {
         return int.TryParse(raw, out var value) ? value : 0;
+    }
+
+    private static IEnumerable<string> ExistingPaths(IEnumerable<string> paths)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in paths)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                continue;
+            }
+
+            var full = Path.GetFullPath(path);
+            if (!seen.Add(full))
+            {
+                continue;
+            }
+
+            if (File.Exists(full))
+            {
+                yield return full;
+            }
+        }
     }
 }

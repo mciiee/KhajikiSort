@@ -29,26 +29,65 @@ var projectDir = Path.GetFullPath(Path.Combine(backendDir, "..", "..", "..", "..
 var datasetsDir = Path.Combine(projectDir, "datasets");
 var frontendDir = Path.Combine(projectDir, "frontend");
 var dictionariesDir = Path.Combine(projectDir, "dictionaries");
-var outputPath = Path.Combine(datasetsDir, "routing_results.csv");
+var pgConn = Environment.GetEnvironmentVariable("FIRE_PG_CONN")
+    ?? "Host=localhost;Port=5432;Database=firedb;Username=fire;Password=fire";
+var forceCsvBootstrap = string.Equals(
+    Environment.GetEnvironmentVariable("FIRE_DB_BOOTSTRAP_FROM_CSV"),
+    "1",
+    StringComparison.OrdinalIgnoreCase);
 
-var tickets = DatasetLoader.LoadTickets(Path.Combine(datasetsDir, "tickets.csv"));
-var baseManagers = DatasetLoader.LoadManagers(Path.Combine(datasetsDir, "managers.csv"));
-var businessUnits = DatasetLoader.LoadBusinessUnits(Path.Combine(datasetsDir, "business_units.csv"));
+var seedTickets = DatasetLoader.LoadTicketsFromMany(
+    Path.Combine(datasetsDir, "tickets.csv"),
+    Path.Combine(projectDir, "tickets.csv"));
+var seedManagers = DatasetLoader.LoadManagersFromMany(
+    Path.Combine(datasetsDir, "managers.csv"),
+    Path.Combine(projectDir, "managers.csv"));
+var seedBusinessUnits = DatasetLoader.LoadBusinessUnitsFromMany(
+    Path.Combine(datasetsDir, "business_units.csv"),
+    Path.Combine(projectDir, "business_units.csv"));
+
+var sourceCountBefore = await PostgresRepository.GetSourceTicketCountAsync(pgConn);
+if (forceCsvBootstrap || sourceCountBefore == 0)
+{
+    await PostgresRepository.SeedSourceDataAsync(
+        pgConn,
+        seedTickets,
+        seedManagers,
+        seedBusinessUnits,
+        dictionariesDir);
+    Console.WriteLine($"Database bootstrap from CSV completed. importedTickets={seedTickets.Count}");
+}
+else
+{
+    Console.WriteLine($"Database bootstrap skipped (source_tickets already has {sourceCountBefore} rows).");
+}
+
+var sourceTickets = await PostgresRepository.LoadTicketsAsync(pgConn);
+var sourceManagers = await PostgresRepository.LoadManagersAsync(pgConn);
+var sourceBusinessUnits = await PostgresRepository.LoadBusinessUnitsAsync(pgConn);
 
 var stateLock = new object();
 var results = new List<ProcessedTicket>();
 var isAnalyzing = false;
 var analyzedCount = 0;
+var sourceTicketCount = sourceTickets.Count;
 var analysisStartedAtUtc = (DateTime?)null;
 var analysisFinishedAtUtc = (DateTime?)null;
 var lastError = string.Empty;
 var currentRunLog = new ConcurrentQueue<string>();
 
-Console.WriteLine($"Startup: tickets={tickets.Count}, managers={baseManagers.Count}, offices={businessUnits.Count}");
+Console.WriteLine($"Startup (from PostgreSQL): tickets={sourceTickets.Count}, managers={sourceManagers.Count}, offices={sourceBusinessUnits.Count}");
+Console.WriteLine($"Ticket sources: {Path.Combine(datasetsDir, "tickets.csv")} + {Path.Combine(projectDir, "tickets.csv")}");
+Console.WriteLine($"Manager sources: {Path.Combine(datasetsDir, "managers.csv")} + {Path.Combine(projectDir, "managers.csv")}");
+Console.WriteLine($"Office sources: {Path.Combine(datasetsDir, "business_units.csv")} + {Path.Combine(projectDir, "business_units.csv")}");
 Console.WriteLine($"Gemma config: key={(string.IsNullOrWhiteSpace(gemmaApiKey) ? "missing" : "provided")}, model={gemmaModel}, maxRequests={gemmaMaxRequests}, minDelayMs={gemmaMinDelayMs}");
 
 async Task RunAnalysisAsync(CancellationToken cancellationToken = default)
 {
+    var tickets = await PostgresRepository.LoadTicketsAsync(pgConn, cancellationToken);
+    var baseManagers = await PostgresRepository.LoadManagersAsync(pgConn, cancellationToken);
+    var businessUnits = await PostgresRepository.LoadBusinessUnitsAsync(pgConn, cancellationToken);
+
     var localRouter = new RoutingEngine();
     var managers = baseManagers.Select(m => new Manager
     {
@@ -66,6 +105,7 @@ async Task RunAnalysisAsync(CancellationToken cancellationToken = default)
     {
         isAnalyzing = true;
         analyzedCount = 0;
+        sourceTicketCount = tickets.Count;
         analysisStartedAtUtc = DateTime.UtcNow;
         analysisFinishedAtUtc = null;
         lastError = string.Empty;
@@ -102,27 +142,19 @@ async Task RunAnalysisAsync(CancellationToken cancellationToken = default)
             Console.WriteLine(doneMsg);
         }
 
-        RoutingResultWriter.Write(outputPath, localResults);
-
-        var pgConn = Environment.GetEnvironmentVariable("FIRE_PG_CONN")
-            ?? "Host=localhost;Port=5432;Database=firedb;Username=fire;Password=fire";
         try
         {
-            await PostgresExporter.ExportAsync(
+            await PostgresRepository.UpsertRoutedTicketsAsync(
                 pgConn,
-                tickets,
-                managers,
-                businessUnits,
                 localResults,
-                dictionariesDir,
                 cancellationToken);
-            Console.WriteLine("PostgreSQL export: OK");
-            currentRunLog.Enqueue("PostgreSQL export: OK");
+            Console.WriteLine("PostgreSQL routed_tickets upsert: OK");
+            currentRunLog.Enqueue("PostgreSQL routed_tickets upsert: OK");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"PostgreSQL export failed: {ex.Message}");
-            currentRunLog.Enqueue($"PostgreSQL export failed: {ex.Message}");
+            Console.WriteLine($"PostgreSQL save failed: {ex.Message}");
+            currentRunLog.Enqueue($"PostgreSQL save failed: {ex.Message}");
         }
 
         lock (stateLock)
@@ -131,10 +163,8 @@ async Task RunAnalysisAsync(CancellationToken cancellationToken = default)
             analysisFinishedAtUtc = DateTime.UtcNow;
             Console.WriteLine($"Processed {localResults.Count} tickets");
             Console.WriteLine($"Total processing time: {runTimer.Elapsed}");
-            Console.WriteLine($"Output CSV: {outputPath}");
             currentRunLog.Enqueue($"Processed {localResults.Count} tickets");
             currentRunLog.Enqueue($"Total processing time: {runTimer.Elapsed}");
-            currentRunLog.Enqueue($"Output CSV: {outputPath}");
         }
     }
     catch (Exception ex)
@@ -182,7 +212,7 @@ object BuildDashboardPayload()
         {
             isAnalyzing = isAnalyzingSnapshot,
             analyzedCount = analyzedSnapshot,
-            totalTickets = tickets.Count,
+            totalTickets = sourceTicketCount,
             startedAtUtc = startedAt,
             finishedAtUtc = finishedAt,
             lastError = errorSnapshot,
@@ -252,7 +282,7 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.MapGet("/api/dashboard", () => Results.Ok(BuildDashboardPayload()));
-app.MapGet("/api/health", () => Results.Ok(new { status = "ok", datasetTickets = tickets.Count }));
+app.MapGet("/api/health", () => Results.Ok(new { status = "ok", sourceTickets = sourceTicketCount }));
 app.MapPost("/api/analyze", () =>
 {
     lock (stateLock)

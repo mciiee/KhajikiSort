@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "FIRE Postgres",
+      "Group": "FIRE",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "firedb",
+      "Username": "fire",
+      "SSLMode": "prefer"
+    }
+  }
+}
